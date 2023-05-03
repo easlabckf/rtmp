@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"rtmp-example/rtmp"
 )
 
@@ -11,7 +9,6 @@ const (
 )
 
 func main() {
-	fmt.Println("asd")
-	rtmpserver := rtmp.RTMPServer{Port: PORT}
+	rtmpserver := rtmp.Server{Port: PORT}
 	rtmpserver.Init()
 }

@@ -2,10 +2,10 @@ package rtmp
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"net"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Server struct {
@@ -20,12 +20,11 @@ type Server struct {
 	Handlers    map[string]Handler
 }
 
-func (srv Server) Init() bool {
-	log.Println(fmt.Printf("~Server -Init() [port:%d]", srv.Port))
+func (srv *Server) Init() bool {
+	log.Println(fmt.Printf("Server is starting at port:%d", srv.Port))
 
 	if srv.inited {
-		log.Fatalln("~Server -Init() RTMP Server is already running.")
-
+		log.Error("Server is already initialized")
 		return false
 	}
 
@@ -46,45 +45,38 @@ func (srv Server) Init() bool {
 
 }
 
-func (srv Server) bindServer() bool {
+func (srv *Server) bindServer() bool {
 	port := strconv.Itoa(srv.Port)
 	listen, err := net.Listen("tcp", "localhost:"+port)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Error("network listen error: ", err)
 		return false
 	}
-
-	srv.server = listen
 
 	defer listen.Close()
 
 	for {
-		conn, err := listen.Accept()
+		netconn, err := listen.Accept()
 		if err != nil {
-			log.Fatal(err)
+			log.Error("network accept init error: ", err)
 			return false
 		}
 
-		go echo_handler(conn)
+		conn := NewConn(netconn, 4*1024)
+		srv.handleConnection(conn)
 
 	}
 }
 
-func echo_handler(conn net.Conn) {
-	tmp := make([]byte, 4096)
-
-	for {
-		n, err := conn.Read(tmp)
-		if err != nil {
-			if err != io.EOF {
-				fmt.Println("read error:", err)
-			}
-			break
-		}
-		fmt.Println(tmp[:n])
-		fmt.Println(n)
+func (srv *Server) handleConnection(conn *Connection) (err error) {
+	if err := HandshakeServer(conn); err != nil {
+		conn.Close()
+		log.Error("handleConn HandshakeServer err: ", err)
+		return err
 	}
+	return
+	//connServer := core.NewConnServer(conn)
 }
 
 func (srv Server) createPriorityThread() bool {

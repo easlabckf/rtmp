@@ -1,5 +1,10 @@
 package rtmp
 
+import (
+	"fmt"
+	"io"
+)
+
 /*
 +-------------+                           +-------------+
 |    Client   |       TCP/IP Network      |    Server   |
@@ -49,3 +54,38 @@ var GenuineFPKey = [...]uint8{
 }
 
 type Handshake struct{}
+
+func HandshakeServer(conn *Connection) (err error) {
+	var clientData [1 + 1536*2]byte
+	var serverData [1 + 1536*2]byte
+
+	C0 := clientData[:1]
+	C1 := clientData[1 : 1536+1]
+	C0C1 := clientData[:1536+1]
+	//C2 := clientData[1536+1:]
+
+	S0 := serverData[:1]
+	//S1 := serverData[1 : 1536+1]
+	//S0S1 := serverData[:1536+1]
+	//S2 := serverData[1536+1:]
+
+	if _, err = io.ReadFull(conn.rw, C0C1); err != nil {
+		return err
+	}
+
+	/*
+	   In C0, this field identifies the RTMP version requested by the client.
+	   In S0, this field identifies the RTMP version selected by the server.
+	   The version defined by this specification is 3.
+	*/
+	if C0[0] != 3 {
+		err = fmt.Errorf("rtmp: handshake version=%d invalid", C0[0])
+		return err
+	}
+
+	S0[0] = 3
+
+	fmt.Println(C1)
+
+	return
+}
