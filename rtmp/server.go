@@ -2,6 +2,7 @@ package rtmp
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -15,38 +16,38 @@ type RTMPServer struct {
 	serverPort int
 	server     net.Listener
 
-	Connections  map[int]RTMPConnection
-	Applications map[string]RTMPApplication
+	Connections map[int]RTMPConnection
+	Handlers    map[string]RTMPHandler
 }
 
-func (rtmpserver RTMPServer) Init() bool {
-	log.Println(fmt.Printf("~RTMPServer -Init() [port:%d]", rtmpserver.Port))
+func (srv RTMPServer) Init() bool {
+	log.Println(fmt.Printf("~RTMPServer -Init() [port:%d]", srv.Port))
 
-	if rtmpserver.inited {
+	if srv.inited {
 		log.Fatalln("~RTMPServer -Init() RTMP Server is already running.")
 
 		return false
 	}
 
-	rtmpserver.serverPort = rtmpserver.Port
-	rtmpserver.inited = true
+	srv.serverPort = srv.Port
+	srv.inited = true
 
 	//Init server socket
-	if !rtmpserver.bindServer() {
+	if !srv.bindServer() {
 		return false
 	}
 
 	//Create threads
-	rtmpserver.createPriorityThread()
-	rtmpserver.server.Accept()
+	srv.createPriorityThread()
+	srv.server.Accept()
 
 	//Return ok
 	return true
 
 }
 
-func (rtmpserver RTMPServer) bindServer() bool {
-	port := strconv.Itoa(rtmpserver.Port)
+func (srv RTMPServer) bindServer() bool {
+	port := strconv.Itoa(srv.Port)
 	listen, err := net.Listen("tcp", "localhost:"+port)
 
 	if err != nil {
@@ -54,35 +55,38 @@ func (rtmpserver RTMPServer) bindServer() bool {
 		return false
 	}
 
-	rtmpserver.server = listen
+	srv.server = listen
 
 	defer listen.Close()
+
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
 			log.Fatal(err)
 			return false
 		}
-		conn.Write(make([]byte, 1))
+
+		go echo_handler(conn)
+
 	}
 }
 
-func (rtmpserver RTMPServer) createPriorityThread() bool {
-	port := strconv.Itoa(rtmpserver.Port)
-	listen, err := net.Listen("tcp", "localhost:"+port)
+func echo_handler(conn net.Conn) {
+	tmp := make([]byte, 4096)
 
-	if err != nil {
-		log.Fatal(err)
-		return false
-	}
-
-	defer listen.Close()
 	for {
-		conn, err := listen.Accept()
+		n, err := conn.Read(tmp)
 		if err != nil {
-			log.Fatal(err)
-			return false
+			if err != io.EOF {
+				fmt.Println("read error:", err)
+			}
+			break
 		}
-		conn.Write(make([]byte, 1))
+		fmt.Println(tmp[:n])
+		fmt.Println(n)
 	}
+}
+
+func (srv RTMPServer) createPriorityThread() bool {
+	return true
 }

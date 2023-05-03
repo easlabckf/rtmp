@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	PORT = 9000
+	PORT = 1935
 )
 
 func main() {
