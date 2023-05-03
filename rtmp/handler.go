@@ -1,3 +1,3 @@
 package rtmp
 
-type RTMPHandler struct{}
+type Handler struct{}

@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-type RTMPServer struct {
+type Server struct {
 	Host string
 	Port int
 
@@ -16,15 +16,15 @@ type RTMPServer struct {
 	serverPort int
 	server     net.Listener
 
-	Connections map[int]RTMPConnection
-	Handlers    map[string]RTMPHandler
+	Connections map[int]Connection
+	Handlers    map[string]Handler
 }
 
-func (srv RTMPServer) Init() bool {
-	log.Println(fmt.Printf("~RTMPServer -Init() [port:%d]", srv.Port))
+func (srv Server) Init() bool {
+	log.Println(fmt.Printf("~Server -Init() [port:%d]", srv.Port))
 
 	if srv.inited {
-		log.Fatalln("~RTMPServer -Init() RTMP Server is already running.")
+		log.Fatalln("~Server -Init() RTMP Server is already running.")
 
 		return false
 	}
@@ -46,7 +46,7 @@ func (srv RTMPServer) Init() bool {
 
 }
 
-func (srv RTMPServer) bindServer() bool {
+func (srv Server) bindServer() bool {
 	port := strconv.Itoa(srv.Port)
 	listen, err := net.Listen("tcp", "localhost:"+port)
 
@@ -87,6 +87,6 @@ func echo_handler(conn net.Conn) {
 	}
 }
 
-func (srv RTMPServer) createPriorityThread() bool {
+func (srv Server) createPriorityThread() bool {
 	return true
 }

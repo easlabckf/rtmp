@@ -1,3 +1,3 @@
 package rtmp
 
-type RTMPConnection struct{}
+type Connection struct{}
