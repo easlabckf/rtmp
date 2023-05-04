@@ -3,6 +3,7 @@ package rtmp
 import (
 	"fmt"
 	"io"
+	"rtmp-example/utils/bitops"
 )
 
 /*
@@ -85,7 +86,10 @@ func HandshakeServer(conn *Connection) (err error) {
 
 	S0[0] = 3
 
-	fmt.Println(C1)
+	cliTs := bitops.U32BE(C1[0:4])
+	srvTs := cliTs
+	srvVer := uint32(0x0d0e0a0d)
+	cliVer := bitops.U32BE(C1[4:8])
 
 	return
 }
