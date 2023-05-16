@@ -3,7 +3,6 @@ package rtmp
 import (
 	"fmt"
 	"io"
-	"rtmp-example/utils/bitops"
 )
 
 /*
@@ -63,15 +62,15 @@ func HandshakeServer(conn *Connection) (err error) {
 	C0 := clientData[:1]
 	C1 := clientData[1 : 1536+1]
 	C0C1 := clientData[:1536+1]
-	//C2 := clientData[1536+1:]
+	C2 := clientData[1536+1:]
 
 	S0 := serverData[:1]
-	//S1 := serverData[1 : 1536+1]
-	//S0S1 := serverData[:1536+1]
-	//S2 := serverData[1536+1:]
+	S1 := serverData[1 : 1536+1]
+	S0S1 := serverData[:1536+1]
+	S2 := serverData[1536+1:]
 
 	if _, err = io.ReadFull(conn.rw, C0C1); err != nil {
-		return err
+		return
 	}
 
 	/*
@@ -81,15 +80,33 @@ func HandshakeServer(conn *Connection) (err error) {
 	*/
 	if C0[0] != 3 {
 		err = fmt.Errorf("rtmp: handshake version=%d invalid", C0[0])
-		return err
+		return
 	}
 
 	S0[0] = 3
 
-	cliTs := bitops.U32BE(C1[0:4])
-	srvTs := cliTs
-	srvVer := uint32(0x0d0e0a0d)
-	cliVer := bitops.U32BE(C1[4:8])
+	//cliTs := bitops.U32BE(C1[0:4])
+
+	copy(S1, C2)
+	copy(S2, C1)
+
+	if _, err = conn.rw.Write(S0S1); err != nil {
+		return
+	}
+
+	if _, err = conn.rw.Write(S2); err != nil {
+		return
+	}
+
+	if err = conn.rw.Flush(); err != nil {
+		return
+	}
+
+	if _, err = io.ReadFull(conn.rw, C2); err != nil {
+		return
+	}
+
+	fmt.Println(C2)
 
 	return
 }

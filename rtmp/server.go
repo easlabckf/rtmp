@@ -75,8 +75,11 @@ func (srv *Server) handleConnection(conn *Connection) (err error) {
 		log.Error("handleConn HandshakeServer err: ", err)
 		return err
 	}
+
+	connHandler := NewHandler(conn, 5)
+	connHandler.bufferSize = 2
+
 	return
-	//connServer := core.NewConnServer(conn)
 }
 
 func (srv Server) createPriorityThread() bool {
