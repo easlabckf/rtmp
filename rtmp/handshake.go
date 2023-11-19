@@ -65,7 +65,7 @@ func HandshakeServer(conn *Connection) (err error) {
 	C2 := clientData[1536+1:]
 
 	S0 := serverData[:1]
-	S1 := serverData[1 : 1536+1]
+	//S1 := serverData[1 : 1536+1]
 	S0S1 := serverData[:1536+1]
 	S2 := serverData[1536+1:]
 
@@ -85,9 +85,7 @@ func HandshakeServer(conn *Connection) (err error) {
 
 	S0[0] = 3
 
-	//cliTs := bitops.U32BE(C1[0:4])
-
-	copy(S1, C2)
+	copy(S0S1, C0C1)
 	copy(S2, C1)
 
 	if _, err = conn.rw.Write(S0S1); err != nil {
@@ -105,8 +103,6 @@ func HandshakeServer(conn *Connection) (err error) {
 	if _, err = io.ReadFull(conn.rw, C2); err != nil {
 		return
 	}
-
-	fmt.Println(C2)
 
 	return
 }

@@ -21,7 +21,7 @@ type Server struct {
 }
 
 func (srv *Server) Init() bool {
-	log.Println(fmt.Printf("Server is starting at port:%d", srv.Port))
+	log.Println(fmt.Sprintf("Server is starting at port:%d", srv.Port))
 
 	if srv.inited {
 		log.Error("Server is already initialized")
@@ -64,8 +64,7 @@ func (srv *Server) bindServer() bool {
 		}
 
 		conn := NewConn(netconn, 4*1024)
-		srv.handleConnection(conn)
-
+		go srv.handleConnection(conn)
 	}
 }
 
@@ -76,8 +75,13 @@ func (srv *Server) handleConnection(conn *Connection) (err error) {
 		return err
 	}
 
-	connHandler := NewHandler(conn, 5)
-	connHandler.bufferSize = 2
+	connHandler := NewHandler(conn)
+
+	if err := connHandler.ReadMsg(); err != nil {
+		conn.Close()
+		log.Error("connHandler read msg err: ", err)
+		return err
+	}
 
 	return
 }
