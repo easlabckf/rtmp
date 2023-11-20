@@ -166,3 +166,51 @@ func (conn *Connection) Write(c *ChunkStream) error {
 	}
 	return c.writeChunk(conn.rw, int(conn.chunkSize))
 }
+
+const (
+	streamBegin      uint32 = 0
+	streamEOF        uint32 = 1
+	streamDry        uint32 = 2
+	setBufferLen     uint32 = 3
+	streamIsRecorded uint32 = 4
+	pingRequest      uint32 = 6
+	pingResponse     uint32 = 7
+)
+
+/*
+   +------------------------------+-------------------------
+   |     Event Type ( 2- bytes )  | Event Data
+   +------------------------------+-------------------------
+   Pay load for the ‘User Control Message’.
+*/
+func (conn *Connection) userControlMsg(eventType, buflen uint32) ChunkStream {
+	var ret ChunkStream
+	buflen += 2
+	ret = ChunkStream{
+		Format:   0,
+		CSID:     2,
+		TypeID:   4,
+		StreamID: 1,
+		Length:   buflen,
+		Data:     make([]byte, buflen),
+	}
+	ret.Data[0] = byte(eventType >> 8 & 0xff)
+	ret.Data[1] = byte(eventType & 0xff)
+	return ret
+}
+
+func (conn *Connection) SetBegin() {
+	ret := conn.userControlMsg(streamBegin, 4)
+	for i := 0; i < 4; i++ {
+		ret.Data[2+i] = byte(1 >> uint32((3-i)*8) & 0xff)
+	}
+	conn.Write(&ret)
+}
+
+func (conn *Connection) SetRecorded() {
+	ret := conn.userControlMsg(streamIsRecorded, 4)
+	for i := 0; i < 4; i++ {
+		ret.Data[2+i] = byte(1 >> uint32((3-i)*8) & 0xff)
+	}
+	conn.Write(&ret)
+}

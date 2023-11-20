@@ -2,6 +2,7 @@ package rtmp
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 
@@ -77,13 +78,30 @@ func (srv *Server) handleConnection(conn *Connection) (err error) {
 
 	connHandler := NewHandler(conn)
 
-	if err := connHandler.ReadMsg(); err != nil {
+	if err := connHandler.InitConnection(); err != nil {
 		conn.Close()
 		log.Error("connHandler read msg err: ", err)
 		return err
 	}
 
-	return
+	app, name, _ := connHandler.GetInfo()
+
+	log.Println(fmt.Sprintf("handleConn: IsPublisher=%v", connHandler.IsPublisher()))
+	log.Println(fmt.Sprintf("connection is initialized successfully %s %s", app, name))
+
+	if connHandler.IsPublisher() {
+		for {
+			var buff [1024]byte
+
+			if _, err = io.ReadFull(connHandler.conn.rw, buff[0:]); err != nil {
+				return
+			}
+
+			fmt.Printf("%x\n", buff)
+		}
+	}
+
+	return nil
 }
 
 func (srv Server) createPriorityThread() bool {

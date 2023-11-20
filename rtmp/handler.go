@@ -90,7 +90,7 @@ func NewHandler(conn *Connection) *Handler {
 	}
 }
 
-func (handler *Handler) ReadMsg() error {
+func (handler *Handler) InitConnection() error {
 	var c ChunkStream
 
 	for {
@@ -109,6 +109,7 @@ func (handler *Handler) ReadMsg() error {
 			break
 		}
 	}
+
 	return nil
 }
 
@@ -128,7 +129,7 @@ func (handler *Handler) handleCmdMsg(c *ChunkStream) error {
 		return err
 	}
 
-	log.Println(fmt.Sprintf("rtmp req: %#v", vs))
+	log.Println(fmt.Sprintf("rtmp cmd req: %#v", vs))
 
 	switch vs[0].(type) {
 	case string:
@@ -140,6 +141,28 @@ func (handler *Handler) handleCmdMsg(c *ChunkStream) error {
 			if err = handler.connectResp(c); err != nil {
 				return err
 			}
+		case cmdCreateStream:
+			if err = handler.createStream(vs[1:]); err != nil {
+				return err
+			}
+			if err = handler.createStreamResp(c); err != nil {
+				return err
+			}
+
+		case cmdPublish:
+			if err = handler.publishOrPlay(vs[1:]); err != nil {
+				return err
+			}
+			if err = handler.publishResp(c); err != nil {
+				return err
+			}
+			handler.done = true
+			handler.isPublisher = true
+			log.Println("handle publish req done")
+		case cmdFcpublish:
+			handler.fcPublish(vs)
+		case cmdReleaseStream:
+			handler.releaseStream(vs)
 		case cmdFCUnpublish:
 		case cmdDeleteStream:
 		default:
@@ -201,22 +224,8 @@ func (handler *Handler) connectResp(cur *ChunkStream) error {
 	return handler.writeMsg(cur.CSID, cur.StreamID, "_result", handler.transactionID, resp, event)
 }
 
-/*
-func (handler *Handler) createStream(vs []interface{}) error {
-	for _, v := range vs {
-		switch v.(type) {
-		case string:
-		case float64:
-			handler.transactionID = int(v.(float64))
-		case amf.Object:
-		}
-	}
-
+func (handler *Handler) fcPublish(vs []interface{}) error {
 	return nil
-}
-
-func (handler *Handler) createStreamResp(cur *ChunkStream) error {
-	return handler.writeMsg(cur.CSID, cur.StreamID, "_result", handler.transactionID, nil, handler.streamID)
 }
 
 func (handler *Handler) publishOrPlay(vs []interface{}) error {
@@ -238,64 +247,59 @@ func (handler *Handler) publishOrPlay(vs []interface{}) error {
 	return nil
 }
 
-func (handler *Handler) playResp(cur *ChunkStream) error {
-	handler.conn.SetRecorded()
-	handler.conn.SetBegin()
-
+func (handler *Handler) publishResp(cur *ChunkStream) error {
 	event := make(amf.Object)
 	event["level"] = "status"
-	event["code"] = "NetStream.Play.Reset"
-	event["description"] = "Playing and resetting stream."
-	if err := handler.writeMsg(cur.CSID, cur.StreamID, "onStatus", 0, nil, event); err != nil {
-		return err
+	event["code"] = "NetStream.Publish.Start"
+	event["description"] = "Start publishing."
+
+	return handler.writeMsg(cur.CSID, cur.StreamID, "onStatus", handler.transactionID, nil, event)
+}
+
+func (handler *Handler) createStream(vs []interface{}) error {
+	for _, v := range vs {
+		switch v.(type) {
+		case string:
+		case float64:
+			handler.transactionID = int(v.(float64))
+		case amf.Object:
+		}
 	}
 
-	event["level"] = "status"
-	event["code"] = "NetStream.Play.Start"
-	event["description"] = "Started playing stream."
-	if err := handler.writeMsg(cur.CSID, cur.StreamID, "onStatus", 0, nil, event); err != nil {
-		return err
-	}
+	return nil
+}
 
-	event["level"] = "status"
-	event["code"] = "NetStream.Data.Start"
-	event["description"] = "Started playing stream."
-	if err := handler.writeMsg(cur.CSID, cur.StreamID, "onStatus", 0, nil, event); err != nil {
-		return err
-	}
-
-	event["level"] = "status"
-	event["code"] = "NetStream.Play.PublishNotify"
-	event["description"] = "Started playing notify."
-	if err := handler.writeMsg(cur.CSID, cur.StreamID, "onStatus", 0, nil, event); err != nil {
-		return err
-	}
-
-	return handler.conn.Flush()
+func (handler *Handler) createStreamResp(cur *ChunkStream) error {
+	return handler.writeMsg(cur.CSID, cur.StreamID, "_result", handler.transactionID, nil, handler.streamID)
 }
 
 func (handler *Handler) releaseStream(vs []interface{}) error {
 	return nil
 }
 
-func (handler *Handler) fcPublish(vs []interface{}) error {
-	return nil
-}
-
-func (handler *Handler) publishResp(cur *ChunkStream) error {
-	event := make(amf.Object)
-	event["level"] = "status"
-	event["code"] = "NetStream.Publish.Start"
-	event["description"] = "Start publishing."
-	return handler.writeMsg(cur.CSID, cur.StreamID, "onStatus", 0, nil, event)
-}
-*/
-
 func (handler *Handler) writeMsg(csid, streamID uint32, args ...interface{}) error {
 	handler.bytesw.Reset()
+	log.Println(fmt.Sprintf("rtmp response: %#v\n", args))
 
-	log.Println(fmt.Sprintf("%#v", args))
+	for _, v := range args {
+		if _, err := handler.encoder.Encode(handler.bytesw, v, amf.AMF0); err != nil {
+			return err
+		}
+	}
 
+	msg := handler.bytesw.Bytes()
+	c := ChunkStream{
+		Format:    0,
+		CSID:      csid,
+		Timestamp: 0,
+		TypeID:    20,
+		StreamID:  streamID,
+		Length:    uint32(len(msg)),
+		Data:      msg,
+	}
+	//log.Println(fmt.Sprintf("rtmp response: %#v\n", v))
+
+	handler.conn.Write(&c)
 	return handler.conn.Flush()
 }
 
@@ -313,6 +317,22 @@ func (handler *Handler) Write(c ChunkStream) error {
 	return handler.conn.Write(&c)
 }
 */
+
 func (handler *Handler) Flush() error {
 	return handler.conn.Flush()
+}
+
+func (handler *Handler) IsPublisher() bool {
+	return handler.isPublisher
+}
+
+func (handler *Handler) GetInfo() (app string, name string, url string) {
+	app = handler.ConnInfo.App
+	name = handler.PublishInfo.Name
+	url = handler.ConnInfo.TcUrl + "/" + handler.PublishInfo.Name
+	return
+}
+
+func (handler *Handler) Close(err error) {
+	handler.conn.Close()
 }

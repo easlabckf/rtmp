@@ -27,3 +27,21 @@ func (d *Decoder) Decode(r io.Reader, ver Version) (interface{}, error) {
 
 	return nil, fmt.Errorf("decode amf: unsupported version %d", ver)
 }
+
+func (e *Encoder) EncodeBatch(w io.Writer, ver Version, val ...interface{}) (int, error) {
+	for _, v := range val {
+		if _, err := e.Encode(w, v, ver); err != nil {
+			return 0, err
+		}
+	}
+	return 0, nil
+}
+
+func (e *Encoder) Encode(w io.Writer, val interface{}, ver Version) (int, error) {
+	switch ver {
+	case AMF0:
+		return e.EncodeAmf0(w, val)
+	}
+
+	return 0, fmt.Errorf("encode amf: unsupported version %d", ver)
+}
